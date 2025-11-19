@@ -1,0 +1,19 @@
+
+[base]
+a = "a"
+
+[[connections]]
+name = "dremioproduction"
+type = "dremio"
+
+data.output_directory = "./data/dremio-prod"
+data.flight_host = ""
+data.flight_port = 443
+data.rest_host = ""
+data.rest_port = 443
+data.username = ""
+data.password = ""
+data.use_ssl = true
+data.schemas = ["APEX.Orbit.Usage", "APEX.Orbit.dataops"]
+
+data.sample_size = 0
