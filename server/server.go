@@ -14,53 +14,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type middle struct {
-}
-
-func (m middle) StartCall(ctx context.Context) context.Context {
-	fmt.Println("StartCall")
-	fmt.Println(ctx)
-	// transport.GetConnection
-	// if ctx.Value("ABC") == nil {
-	// 	fmt.Println("Set context value")
-	// 	ctx = context.WithValue(ctx, "ABC", time.Now())
-	// }
-
-	return ctx
-}
-func (m middle) CallCompleted(ctx context.Context, err error) {
-	fmt.Println("CallCompleted")
-	// fmt.Println(ctx)
-	// fmt.Println(err)
-}
-
-type serverAuth struct{}
-
-func (sa *serverAuth) Authenticate(c flight.AuthConn) error {
-	fmt.Println("Token Authenticate")
-	return c.Send([]byte("foobar"))
-}
-
-func (sa *serverAuth) IsValid(token string) (interface{}, error) {
-	fmt.Println("Token IsValid")
-	fmt.Println(token)
-	return "a", nil
-}
-
-func (sa *serverAuth) Validate(username string, password string) (string, error) {
-	fmt.Println("CCC")
-	return "", nil
-}
-
 func Launch(ctx context.Context, config config.Config) {
-
-	server := NewSimpleFlightServer(config)
-
+	server := NewSimpleFlightServer(ctx, config)
 	grpcServer2 := flight.NewServerWithMiddleware([]flight.ServerMiddleware{
 		// flight.CreateServerBasicAuthMiddleware(&serverAuth{}),
 		// flight.CreateServerMiddleware(middle{}),
 	})
-
 	grpcServer2.RegisterFlightService(server)
 
 	err := grpcServer2.Init("localhost:8080")
@@ -88,11 +47,12 @@ func Launch(ctx context.Context, config config.Config) {
 
 }
 
-func NewSimpleFlightServer(config config.Config) *SimpleFlightServer {
+func NewSimpleFlightServer(ctx context.Context, config config.Config) *SimpleFlightServer {
 	return &SimpleFlightServer{
 		alloc:        memory.NewGoAllocator(),
 		transactions: make(map[string]*Transaction),
 		config:       config,
+		ctx:          ctx,
 	}
 }
 
@@ -102,6 +62,7 @@ type SimpleFlightServer struct {
 	alloc        memory.Allocator
 	transactions map[string]*Transaction
 	config       config.Config
+	ctx          context.Context
 }
 
 // DoAction handles action requests
