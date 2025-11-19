@@ -24,7 +24,6 @@ func Preview() *cobra.Command {
 
 			for name, s := range config.Sources {
 				if name == source {
-					defer s.Cleanup(context.Background())
 					schema, err := s.Schema(context.Background(), table)
 
 					if err != nil {

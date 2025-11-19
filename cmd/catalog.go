@@ -16,7 +16,6 @@ func Catalog() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			config := config.LoadConfig("config.toml")
 			for _, s := range config.Sources {
-				defer s.Cleanup(context.Background())
 				s.DownloadCatalog(context.Background())
 			}
 		},

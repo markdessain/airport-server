@@ -114,10 +114,6 @@ func (d Dremio) DownloadCatalog(ctx context.Context) {
 
 }
 
-func (d Dremio) Cleanup(ctx context.Context) error {
-	return nil
-}
-
 func (d Dremio) Tables(ctx context.Context) []string {
 
 	result := []string{}

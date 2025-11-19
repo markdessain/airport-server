@@ -8,7 +8,6 @@ import (
 
 type SourceInterface interface {
 	DownloadCatalog(context.Context)
-	Cleanup(context.Context) error
 	Tables(context.Context) []string
 	Schema(context.Context, string) (*arrow.Schema, error)
 	Stream(context.Context, string) (chan arrow.Record, error)
@@ -23,10 +22,6 @@ type Source struct {
 
 func (s Source) DownloadCatalog(ctx context.Context) {
 	s.Inner.DownloadCatalog(ctx)
-}
-
-func (s Source) Cleanup(ctx context.Context) error {
-	return s.Inner.Cleanup(ctx)
 }
 
 func (s Source) Tables(ctx context.Context) []string {

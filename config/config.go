@@ -49,9 +49,14 @@ func LoadConfig(configPath string) Config {
 	result := map[string]sources.Source{}
 
 	for _, conn := range cfg.Connections {
-		d, err := toml.Marshal(conn.Data)
-		if err != nil {
-			panic(err)
+		var d []byte
+		if conn.Data != nil {
+			d, err = toml.Marshal(conn.Data)
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			d = []byte("")
 		}
 		s, exists := sources.GetSource(conn.Type, d)
 

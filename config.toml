@@ -17,3 +17,7 @@ data.use_ssl = true
 data.schemas = ["APEX.Orbit.Usage", "APEX.Orbit.dataops"]
 
 data.sample_size = 0
+
+[[connections]]
+name = "example"
+type = "dummy"
