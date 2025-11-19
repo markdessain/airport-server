@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -36,11 +35,11 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 	var records chan arrow.Record
 
 	if catalog == "preview" {
-		records, err = b.Preview(context.Background(), table)
+		records, err = b.Preview(s.ctx, table)
 
 	} else {
 
-		records, err = b.Stream(context.Background(), "SELECT * FROM "+table)
+		records, err = b.Stream(s.ctx, "SELECT * FROM "+table)
 	}
 
 	if err != nil {
