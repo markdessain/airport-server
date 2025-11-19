@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"airportserver/sources"
 
 	"github.com/apache/arrow/go/v16/arrow"
+	"github.com/apache/arrow/go/v16/arrow/flight"
 	arrowflight "github.com/apache/arrow/go/v16/arrow/flight"
 	"github.com/apache/arrow/go/v16/arrow/memory"
 	"github.com/apache/arrow/go/v16/parquet/file"
@@ -115,27 +115,20 @@ func (d Dremio) DownloadCatalog(ctx context.Context) {
 }
 
 func (d Dremio) Cleanup(ctx context.Context) error {
-	queryFile := d.config.OutputDirectory + "/query.parquet"
-	if _, err := os.Stat(queryFile); err == nil {
-		return os.Remove(queryFile)
-	}
 	return nil
 }
 
 func (d Dremio) Tables(ctx context.Context) []string {
 
 	result := []string{}
-	err := filepath.Walk(d.config.OutputDirectory, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(d.config.OutputDirectory+"/schemas/", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Printf("Error accessing path %q: %v\n", path, err)
 			return err
 		}
 
-		if path == d.config.OutputDirectory+"/query.parquet" {
-			return nil
-		}
 		if !info.IsDir() {
-			dpath := strings.TrimPrefix(path, d.config.OutputDirectory+"/")
+			dpath := strings.TrimPrefix(path, d.config.OutputDirectory+"/schemas/")
 			result = append(result, dpath)
 		}
 
@@ -149,36 +142,72 @@ func (d Dremio) Tables(ctx context.Context) []string {
 	return result
 }
 
-func (d Dremio) Schema(ctx context.Context, query string) (*arrow.Schema, error) {
+func (d Dremio) Schema(ctx context.Context, table string) (*arrow.Schema, error) {
 
-	query = modifySQL(query, d.config.OutputDirectory)
-
-	cmd := exec.Command("duckdb-binary", "-c", "COPY ("+query+") TO '"+d.config.OutputDirectory+"/query.parquet' (FORMAT parquet);")
-	_, err := cmd.Output()
-	if err != nil {
-		return nil, errors.New("failed to execute command: " + err.Error())
-	}
-
-	f, err := os.Open(d.config.OutputDirectory + "/query.parquet")
+	f, err := os.Open(d.config.OutputDirectory + "/schemas/" + table)
 	if err != nil {
 		return nil, errors.New("failed to Open: " + err.Error())
 	}
+	data, err := os.ReadFile(f.Name())
+	if err != nil {
+		return nil, errors.New("failed to read file: " + err.Error())
+	}
+	return flight.DeserializeSchema(data, memory.DefaultAllocator)
 
-	pf, err := file.NewParquetReader(f)
-	if err != nil {
-		return nil, errors.New("failed to NewParquetReader: " + err.Error())
-	}
-	defer pf.Close()
-	reader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{}, memory.NewGoAllocator())
-	if err != nil {
-		return nil, errors.New("failed to NewFileReader: " + err.Error())
-	}
+}
+func (d Dremio) Preview(ctx context.Context, table string) (chan arrow.Record, error) {
 
-	arrowSchema, err := reader.Schema()
-	if err != nil {
-		return nil, errors.New("failed to arrowSchema: " + err.Error())
-	}
-	return arrowSchema, nil
+	run := true
+	c := make(chan arrow.Record)
+
+	go func() {
+		<-ctx.Done()
+		close(c)
+		run = false
+	}()
+
+	go func() {
+		f, err := os.Open(d.config.OutputDirectory + "/data/" + table)
+		if err != nil {
+			fmt.Println("failed to Open: " + err.Error())
+		}
+		pf, err := file.NewParquetReader(f)
+		if err != nil {
+			fmt.Println("failed to NewParquetReader: " + err.Error())
+		}
+		defer pf.Close()
+		reader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 1}, memory.NewGoAllocator())
+		if err != nil {
+			fmt.Println("failed to NewFileReader: " + err.Error())
+		}
+
+		rdr, err := reader.GetRecordReader(context.Background(), nil, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		defer rdr.Release()
+		var previewRec arrow.Record
+
+		for rdr.Next() {
+			rec := rdr.Record()
+			rec.Retain()
+
+			if !run {
+				return
+			}
+			c <- rec
+
+			if previewRec != nil {
+				previewRec.Release()
+			}
+			previewRec = rec
+		}
+
+		close(c)
+	}()
+
+	return c, nil
 
 }
 

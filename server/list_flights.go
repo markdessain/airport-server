@@ -17,7 +17,7 @@ func (s *SimpleFlightServer) ListFlights(criteria *flight.Criteria, stream fligh
 
 		if name == schemaName {
 			for _, table := range source.Tables(context.Background()) {
-				schema, err := source.Schema(context.Background(), "SELECT * FROM "+table)
+				schema, err := source.Schema(context.Background(), table)
 				if err != nil {
 					fmt.Println(err)
 				}

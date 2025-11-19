@@ -12,6 +12,7 @@ type SourceInterface interface {
 	Tables(context.Context) []string
 	Schema(context.Context, string) (*arrow.Schema, error)
 	Stream(context.Context, string) (chan arrow.Record, error)
+	Preview(context.Context, string) (chan arrow.Record, error)
 }
 
 var sources = make(map[string]func([]byte) Source)
@@ -40,6 +41,9 @@ func (s Source) Stream(ctx context.Context, query string) (chan arrow.Record, er
 	return s.Inner.Stream(ctx, query)
 }
 
+func (s Source) Preview(ctx context.Context, query string) (chan arrow.Record, error) {
+	return s.Inner.Preview(ctx, query)
+}
 func RegisterSource(name string, source func([]byte) Source) {
 	sources[name] = source
 }

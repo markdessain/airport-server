@@ -42,7 +42,6 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 	for rec := range records {
 
 		if writer == nil {
-			fmt.Println(rec.Schema())
 			writer = flight.NewRecordWriter(stream, ipc.WithSchema(rec.Schema()))
 			defer func() {
 				if err := writer.Close(); err != nil {
@@ -51,7 +50,6 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 			}()
 		}
 
-		fmt.Println(rec.NumRows())
 		err = writer.Write(rec)
 		if err != nil {
 			fmt.Println(err)

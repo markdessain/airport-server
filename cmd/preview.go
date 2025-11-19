@@ -13,7 +13,7 @@ import (
 
 func Preview() *cobra.Command {
 	var source string
-	var query string
+	var table string
 
 	cmd := &cobra.Command{
 		Use:   "preview",
@@ -25,19 +25,22 @@ func Preview() *cobra.Command {
 			for name, s := range config.Sources {
 				if name == source {
 					defer s.Cleanup(context.Background())
-					schema, err := s.Schema(context.Background(), query)
+					schema, err := s.Schema(context.Background(), table)
 
 					if err != nil {
 						fmt.Println(err)
 					}
 					fmt.Println(schema)
 
-					stream, err := s.Stream(context.Background(), "SELECT * FROM ("+query+") LIMIT 5")
+					stream, err := s.Preview(context.Background(), table)
 					if err != nil {
 						fmt.Println(err)
 					}
 
+					i := 0
+
 					for record := range stream {
+						i++
 						var buf bytes.Buffer
 						enc := json.NewEncoder(&buf)
 						enc.SetIndent("", "  ")
@@ -46,6 +49,10 @@ func Preview() *cobra.Command {
 						}
 
 						fmt.Println(buf.String())
+
+						if i > 2 {
+							return
+						}
 					}
 				}
 			}
@@ -53,7 +60,7 @@ func Preview() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&source, "source", "s", "", "source")
-	cmd.Flags().StringVarP(&query, "query", "q", "", "query")
+	cmd.Flags().StringVarP(&table, "table", "t", "", "table")
 
 	return cmd
 }

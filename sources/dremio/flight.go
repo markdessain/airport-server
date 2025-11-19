@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/apache/arrow/go/v16/arrow/flight"
-	"github.com/apache/arrow/go/v16/arrow/memory"
 	"github.com/apache/arrow/go/v16/parquet/pqarrow"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -52,12 +51,32 @@ func DownloadCatalogFile(config Config, tableSchema string, table string) {
 		Cmd:  []byte(query),
 	}
 
-	err = os.MkdirAll(config.OutputDirectory, os.ModePerm)
+	err = os.MkdirAll(config.OutputDirectory+"/schemas", os.ModePerm)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	file, err := os.OpenFile(config.OutputDirectory+"/"+tableSchema+"."+table, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	err = os.MkdirAll(config.OutputDirectory+"/data", os.ModePerm)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	file, err := os.OpenFile(config.OutputDirectory+"/schemas/"+tableSchema+"."+table, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
+	file2, err := os.OpenFile(config.OutputDirectory+"/data/"+tableSchema+"."+table, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Getting Schema")
+	sc, err := client.GetSchema(ctx, desc)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = file.Write(sc.GetSchema())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -87,7 +106,7 @@ func DownloadCatalogFile(config Config, tableSchema string, table string) {
 			rec := rdr.Record()
 
 			if writer == nil {
-				writer, err = pqarrow.NewFileWriter(rec.Schema(), file, nil, pqarrow.DefaultWriterProps())
+				writer, err = pqarrow.NewFileWriter(rec.Schema(), file2, nil, pqarrow.DefaultWriterProps())
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -105,26 +124,6 @@ func DownloadCatalogFile(config Config, tableSchema string, table string) {
 			panic(err)
 		}
 
-	} else {
-		fmt.Println("Getting Schema")
-		sc, err := client.GetSchema(ctx, desc)
-		if err != nil {
-			log.Fatal(err)
-		}
-		schema, err := flight.DeserializeSchema(sc.GetSchema(), memory.DefaultAllocator)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		writer, err := pqarrow.NewFileWriter(schema, file, nil, pqarrow.DefaultWriterProps())
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		err = writer.Close()
-		if err != nil {
-			panic(err)
-		}
 	}
 
 }
