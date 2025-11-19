@@ -41,7 +41,7 @@ func (s *SimpleFlightServer) ListFlights(criteria *flight.Criteria, stream fligh
 					Schema: schemaBytes,
 					FlightDescriptor: &flight.FlightDescriptor{
 						Type: flightpb.FlightDescriptor_PATH,
-						Path: []string{schemaName + "/" + table},
+						Path: []string{catalog + "/" + schemaName + "/" + table},
 					},
 					Endpoint: []*flight.FlightEndpoint{
 						&flight.FlightEndpoint{

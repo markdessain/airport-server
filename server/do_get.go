@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/apache/arrow/go/v16/arrow"
 	"github.com/apache/arrow/go/v16/arrow/flight"
 	"github.com/apache/arrow/go/v16/arrow/ipc"
 	"github.com/vmihailenco/msgpack"
@@ -21,17 +22,26 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 		return status.Errorf(codes.Internal, "failed to unmarshal ticket: %v", err)
 	}
 
-	a := strings.SplitN(t.FlightName, "/", 2)
+	a := strings.SplitN(t.FlightName, "/", 3)
 
-	if len(a) != 2 {
+	if len(a) != 3 {
 		return status.Errorf(codes.Internal, "invalid flight name: %s", t.FlightName)
 	}
-	schema := a[0]
-	table := a[1]
+	catalog := a[0]
+	schema := a[1]
+	table := a[2]
 
 	b := s.config.Sources[schema]
 
-	records, err := b.Stream(context.Background(), "SELECT * FROM "+table)
+	var records chan arrow.Record
+
+	if catalog == "preview" {
+		records, err = b.Preview(context.Background(), table)
+
+	} else {
+
+		records, err = b.Stream(context.Background(), "SELECT * FROM "+table)
+	}
 
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to get records: %v", err)
@@ -57,10 +67,11 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 		}
 	}
 
-	err = writer.Close()
-	if err != nil {
-		log.Fatal(err)
+	if writer != nil {
+		err = writer.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-
 	return nil
 }
