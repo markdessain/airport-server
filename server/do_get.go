@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/apache/arrow/go/v16/arrow"
 	"github.com/apache/arrow/go/v16/arrow/flight"
@@ -39,22 +38,15 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 	requestCtx, requestCancel := context.WithCancel(context.Background())
 
 	go func() {
-		for {
-			if s.ctx.Err() != nil {
-				fmt.Println("Server Disconnected")
-				requestCancel()
-				return
-			}
+		<-s.ctx.Done()
+		fmt.Println("Server Disconnected")
+		requestCancel()
+	}()
 
-			if stream.Context().Err() != nil {
-				fmt.Println("Client Disconnected")
-				requestCancel()
-				return
-			}
-
-			time.Sleep(1 * time.Second)
-		}
-
+	go func() {
+		<-stream.Context().Done()
+		fmt.Println("Client Disconnected")
+		requestCancel()
 	}()
 
 	if catalog == "preview" {
@@ -80,11 +72,13 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 			}()
 		}
 
-		err = writer.Write(rec)
-		if err != nil {
-			requestCancel()
-			<-records
-			break
+		if rec.NumRows() > 0 {
+			err = writer.Write(rec)
+			if err != nil {
+				requestCancel()
+				<-records
+				break
+			}
 		}
 	}
 
