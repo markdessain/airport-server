@@ -31,7 +31,9 @@ func Preview() *cobra.Command {
 					}
 					fmt.Println(schema)
 
-					stream, err := s.Preview(context.Background(), table)
+					requestCtx, requestCancel := context.WithCancel(context.Background())
+
+					stream, err := s.Preview(requestCtx, requestCancel, table)
 					if err != nil {
 						fmt.Println(err)
 					}
@@ -50,7 +52,7 @@ func Preview() *cobra.Command {
 						fmt.Println(buf.String())
 
 						if i > 2 {
-							return
+							requestCancel()
 						}
 					}
 				}

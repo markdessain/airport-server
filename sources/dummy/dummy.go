@@ -46,13 +46,13 @@ func (d Dummy) Schema(ctx context.Context, table string) (*arrow.Schema, error) 
 	return schema, nil
 }
 
-func (d Dummy) Preview(ctx context.Context, table string) (chan arrow.Record, error) {
+func (d Dummy) Preview(ctx context.Context, cancel context.CancelFunc, table string) (chan arrow.Record, error) {
 	c := make(chan arrow.Record)
 	close(c)
 	return c, nil
 }
 
-func (d Dummy) Stream(ctx context.Context, query string) (chan arrow.Record, error) {
+func (d Dummy) Stream(ctx context.Context, cancel context.CancelFunc, query string) (chan arrow.Record, error) {
 	c := make(chan arrow.Record)
 	close(c)
 	return c, nil

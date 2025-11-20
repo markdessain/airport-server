@@ -3,11 +3,9 @@ package dremio
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -15,11 +13,7 @@ import (
 	"airportserver/sources"
 
 	"github.com/apache/arrow/go/v16/arrow"
-	"github.com/apache/arrow/go/v16/arrow/flight"
 	arrowflight "github.com/apache/arrow/go/v16/arrow/flight"
-	"github.com/apache/arrow/go/v16/arrow/memory"
-	"github.com/apache/arrow/go/v16/parquet/file"
-	"github.com/apache/arrow/go/v16/parquet/pqarrow"
 	"github.com/pelletier/go-toml/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -114,112 +108,14 @@ func (d Dremio) DownloadCatalog(ctx context.Context) {
 
 }
 
-func (d Dremio) Tables(ctx context.Context) []string {
-
-	result := []string{}
-	err := filepath.Walk(d.config.OutputDirectory+"/schemas/", func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Printf("Error accessing path %q: %v\n", path, err)
-			return err
-		}
-
-		if !info.IsDir() {
-			dpath := strings.TrimPrefix(path, d.config.OutputDirectory+"/schemas/")
-			result = append(result, dpath)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		log.Printf("Error walking directory: %v\n", err)
-	}
-
-	return result
-}
-
-func (d Dremio) Schema(ctx context.Context, table string) (*arrow.Schema, error) {
-
-	f, err := os.Open(d.config.OutputDirectory + "/schemas/" + table)
-	if err != nil {
-		return nil, errors.New("failed to Open: " + err.Error())
-	}
-	data, err := os.ReadFile(f.Name())
-	if err != nil {
-		return nil, errors.New("failed to read file: " + err.Error())
-	}
-	return flight.DeserializeSchema(data, memory.DefaultAllocator)
-
-}
-func (d Dremio) Preview(ctx context.Context, table string) (chan arrow.Record, error) {
-
-	run := true
+func (d Dremio) Stream(ctx context.Context, cancel context.CancelFunc, query string) (chan arrow.Record, error) {
 	c := make(chan arrow.Record)
-
 	go func() {
 		<-ctx.Done()
 		close(c)
-		run = false
 	}()
 
 	go func() {
-		f, err := os.Open(d.config.OutputDirectory + "/data/" + table)
-		if err != nil {
-			fmt.Println("failed to Open: " + err.Error())
-		}
-		pf, err := file.NewParquetReader(f)
-		if err != nil {
-			fmt.Println("failed to NewParquetReader: " + err.Error())
-		}
-		defer pf.Close()
-		reader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 1}, memory.NewGoAllocator())
-		if err != nil {
-			fmt.Println("failed to NewFileReader: " + err.Error())
-		}
-
-		rdr, err := reader.GetRecordReader(context.Background(), nil, nil)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		defer rdr.Release()
-		var previewRec arrow.Record
-
-		for rdr.Next() {
-			rec := rdr.Record()
-			rec.Retain()
-
-			if !run {
-				return
-			}
-			c <- rec
-
-			if previewRec != nil {
-				previewRec.Release()
-			}
-			previewRec = rec
-		}
-
-		close(c)
-	}()
-
-	return c, nil
-
-}
-
-func (d Dremio) Stream(ctx context.Context, query string) (chan arrow.Record, error) {
-
-	run := true
-	c := make(chan arrow.Record)
-
-	go func() {
-		<-ctx.Done()
-		close(c)
-		run = false
-	}()
-
-	go func() {
-
 		client, err := arrowflight.NewClientWithMiddleware(
 			d.config.FlightHost+":"+strconv.Itoa(d.config.FlightPort),
 			nil,
@@ -230,8 +126,6 @@ func (d Dremio) Stream(ctx context.Context, query string) (chan arrow.Record, er
 			log.Fatal(err)
 		}
 		defer client.Close()
-
-		ctx := context.Background()
 
 		if ctx, err = client.AuthenticateBasicToken(ctx, d.config.Username, d.config.Password); err != nil {
 			log.Fatal(err)
@@ -260,53 +154,33 @@ func (d Dremio) Stream(ctx context.Context, query string) (chan arrow.Record, er
 		var previewRec arrow.Record
 
 		for rdr2.Next() {
-
 			rec := rdr2.Record()
 			rec.Retain()
-
-			if !run {
-				return
+			if ctx.Err() == nil {
+				c <- rec
 			}
-			c <- rec
-
 			if previewRec != nil {
 				previewRec.Release()
 			}
 			previewRec = rec
 		}
 
-		close(c)
+		fmt.Println("Query Completed")
+		cancel()
 
 	}()
 
 	return c, nil
 }
 
-func modifySQL(sql string, outputDirectory string) string {
-	// Split the SQL into words while preserving whitespace and structure
-	words := strings.Fields(sql)
+func (d Dremio) Tables(ctx context.Context) []string {
+	return sources.Tables(d.config.OutputDirectory)
+}
 
-	for i := 0; i < len(words); i++ {
-		word := strings.ToUpper(words[i])
+func (d Dremio) Schema(ctx context.Context, table string) (*arrow.Schema, error) {
+	return sources.Schema(d.config.OutputDirectory, table)
+}
 
-		// Check for FROM clause
-		if word == "FROM" && i+1 < len(words) {
-			tableName := words[i+1]
-			// Remove trailing comma or other punctuation if present
-			trimmed := strings.TrimRight(tableName, ",;)")
-			suffix := tableName[len(trimmed):]
-			words[i+1] = "read_parquet('" + outputDirectory + "/" + trimmed + "')" + suffix
-		}
-
-		// Check for JOIN clause (handles INNER JOIN, LEFT JOIN, RIGHT JOIN, etc.)
-		if strings.HasSuffix(word, "JOIN") && i+1 < len(words) {
-			tableName := words[i+1]
-			// Remove trailing comma or other punctuation if present
-			trimmed := strings.TrimRight(tableName, ",;)")
-			suffix := tableName[len(trimmed):]
-			words[i+1] = "read_parquet('" + outputDirectory + "/" + trimmed + "')" + suffix
-		}
-	}
-
-	return strings.Join(words, " ")
+func (d Dremio) Preview(ctx context.Context, cancel context.CancelFunc, table string) (chan arrow.Record, error) {
+	return sources.Preview(ctx, cancel, d.config.OutputDirectory, table)
 }

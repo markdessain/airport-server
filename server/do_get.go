@@ -1,9 +1,11 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/apache/arrow/go/v16/arrow"
 	"github.com/apache/arrow/go/v16/arrow/flight"
@@ -34,12 +36,31 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 
 	var records chan arrow.Record
 
+	requestCtx, requestCancel := context.WithCancel(context.Background())
+
+	go func() {
+		for {
+			if s.ctx.Err() != nil {
+				fmt.Println("Server Disconnected")
+				requestCancel()
+				return
+			}
+
+			if stream.Context().Err() != nil {
+				fmt.Println("Client Disconnected")
+				requestCancel()
+				return
+			}
+
+			time.Sleep(1 * time.Second)
+		}
+
+	}()
+
 	if catalog == "preview" {
-		records, err = b.Preview(s.ctx, table)
-
+		records, err = b.Preview(requestCtx, requestCancel, table)
 	} else {
-
-		records, err = b.Stream(s.ctx, "SELECT * FROM "+table)
+		records, err = b.Stream(requestCtx, requestCancel, "SELECT * FROM "+table)
 	}
 
 	if err != nil {
@@ -61,7 +82,8 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 
 		err = writer.Write(rec)
 		if err != nil {
-			fmt.Println(err)
+			requestCancel()
+			<-records
 			break
 		}
 	}
@@ -72,5 +94,6 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 			log.Fatal(err)
 		}
 	}
+
 	return nil
 }
