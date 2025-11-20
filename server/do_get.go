@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/apache/arrow/go/v16/arrow"
 	"github.com/apache/arrow/go/v16/arrow/flight"
@@ -61,7 +62,8 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 
 	var writer *flight.Writer
 
-	for rec := range records {
+	for rec := range drip(requestCtx, records) {
+		// for rec := range records {
 
 		if writer == nil {
 			writer = flight.NewRecordWriter(stream, ipc.WithSchema(rec.Schema()))
@@ -90,4 +92,76 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 	}
 
 	return nil
+}
+
+func drip(ctx context.Context, c chan arrow.Record) chan arrow.Record {
+
+	c3 := make(chan arrow.Record, 1)
+
+	go func() {
+
+		c2 := make(chan arrow.Record, 1)
+
+		go func() {
+			<-ctx.Done()
+			close(c2)
+		}()
+
+		var processing arrow.Record
+
+		running := true
+
+		go func() {
+			for x := range c {
+				c2 <- x
+			}
+			running = false
+		}()
+
+		processIndex := 0
+		processChunk := 100
+		for running {
+			select {
+			case x, ok := <-c2:
+				if ok {
+					if processing != nil {
+						c3 <- processing.NewSlice(int64(processIndex), int64(processing.NumRows()))
+						processing.Release()
+					}
+					processIndex = 0
+					processing = x
+					processing.Retain()
+				} else {
+					running = false
+				}
+			default:
+				if processing != nil && processIndex < int(processing.NumRows()) {
+
+					if processIndex+processChunk >= int(processing.NumRows()) {
+						c3 <- processing.NewSlice(int64(processIndex), int64(processing.NumRows()))
+						processIndex = int(processing.NumRows())
+					} else {
+						c3 <- processing.NewSlice(int64(processIndex), int64(processIndex+processChunk))
+						processIndex += processChunk
+					}
+				}
+			}
+
+			time.Sleep(time.Second * 1)
+		}
+
+		if ctx.Err() == nil {
+			c3 <- processing.NewSlice(int64(processIndex), int64(processing.NumRows()))
+			processIndex = 0
+
+			processing = <-c2
+
+			c3 <- processing.NewSlice(int64(processIndex), int64(processing.NumRows()))
+
+		}
+		close(c3)
+
+	}()
+
+	return c3
 }
