@@ -52,7 +52,7 @@ RUN groupadd -g 1001 duckdb && \
 WORKDIR /app
 
 # Copy binary
-COPY --from=builder /app/main /usr/local/bin/duckdb-server
+COPY --from=builder /app/main /usr/local/bin/airport-server
 
 USER duckdb
 

@@ -61,8 +61,8 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 
 	var writer *flight.Writer
 
-	for rec := range drip(requestCtx, records) {
-		// for rec := range records {
+	// for rec := range drip(requestCtx, records) {
+	for rec := range records {
 
 		if writer == nil {
 			writer = flight.NewRecordWriter(stream, ipc.WithSchema(rec.Schema()))

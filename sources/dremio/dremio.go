@@ -160,6 +160,12 @@ func (d Dremio) Stream(ctx context.Context, cancel context.CancelFunc, query str
 			if previewRec != nil {
 				previewRec.Release()
 			}
+
+			previewRec = rec
+		}
+
+		if previewRec != nil {
+			previewRec.Release()
 		}
 
 		log.Println("Query Completed")
