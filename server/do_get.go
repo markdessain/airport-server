@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -16,7 +15,7 @@ import (
 )
 
 func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightService_DoGetServer) error {
-	fmt.Println("Action: DoGet")
+	log.Println("Action: DoGet")
 	var t TicketData
 	err := msgpack.Unmarshal(ticket.GetTicket(), &t)
 	if err != nil {
@@ -40,13 +39,13 @@ func (s *SimpleFlightServer) DoGet(ticket *flight.Ticket, stream flight.FlightSe
 
 	go func() {
 		<-s.ctx.Done()
-		fmt.Println("Server Disconnected")
+		log.Println("Server Disconnected")
 		requestCancel()
 	}()
 
 	go func() {
 		<-stream.Context().Done()
-		fmt.Println("Client Disconnected")
+		log.Println("Client Disconnected")
 		requestCancel()
 	}()
 

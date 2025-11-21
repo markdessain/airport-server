@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"io"
 
 	"log"
@@ -29,14 +28,14 @@ type Connection struct {
 func LoadConfig(configPath string) Config {
 	configFile, err := os.Open(configPath)
 	if err != nil {
-		fmt.Printf("Error opening config.toml: %v\n", err)
+		log.Printf("Error opening config.toml: %v\n", err)
 		os.Exit(1)
 	}
 	defer configFile.Close()
 
 	configData, err := io.ReadAll(configFile)
 	if err != nil {
-		fmt.Printf("Error reading config file: %v\n", err)
+		log.Printf("Error reading config file: %v\n", err)
 		os.Exit(1)
 	}
 

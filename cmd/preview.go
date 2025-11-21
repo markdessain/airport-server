@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"airportserver/config"
 
@@ -27,7 +28,7 @@ func Preview() *cobra.Command {
 					schema, err := s.Schema(context.Background(), table)
 
 					if err != nil {
-						fmt.Println(err)
+						log.Println(err)
 					}
 					fmt.Println(schema)
 
@@ -35,7 +36,7 @@ func Preview() *cobra.Command {
 
 					stream, err := s.Preview(requestCtx, requestCancel, table)
 					if err != nil {
-						fmt.Println(err)
+						log.Println(err)
 					}
 
 					i := 0

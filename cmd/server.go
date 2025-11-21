@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"runtime"
+	"time"
 
 	"log"
 	"os"
@@ -26,6 +28,19 @@ func Server() *cobra.Command {
 			defer func() {
 				signal.Stop(c)
 				cancel()
+			}()
+
+			go func() {
+				for {
+					var m runtime.MemStats
+					runtime.ReadMemStats(&m)
+					log.Printf(
+						"Alloc = %v MiB\tTotalAlloc = %v MiB\tSys = %v MiB\tNumGC = %v\n",
+						m.Alloc/1024/1024,
+						m.TotalAlloc/1024/1024,
+						m.Sys/1024/1024, m.NumGC)
+					time.Sleep(5 * time.Second)
+				}
 			}()
 
 			go func() {

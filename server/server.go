@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"airportserver/config"
@@ -67,7 +66,7 @@ type SimpleFlightServer struct {
 
 // DoAction handles action requests
 func (s *SimpleFlightServer) DoAction(action *flight.Action, stream flight.FlightService_DoActionServer) error {
-	fmt.Println("Action: " + action.Type)
+	log.Println("Action: " + action.Type)
 
 	switch action.Type {
 	case "list_schemas":

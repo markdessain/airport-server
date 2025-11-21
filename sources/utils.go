@@ -3,7 +3,6 @@ package sources
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -62,16 +61,16 @@ func Preview(ctx context.Context, cancel context.CancelFunc, outputDirectory str
 	go func() {
 		f, err := os.Open(outputDirectory + "/data/" + table)
 		if err != nil {
-			fmt.Println("failed to Open: " + err.Error())
+			log.Println("failed to Open: " + err.Error())
 		}
 		pf, err := file.NewParquetReader(f)
 		if err != nil {
-			fmt.Println("failed to NewParquetReader: " + err.Error())
+			log.Println("failed to NewParquetReader: " + err.Error())
 		}
 		defer pf.Close()
 		reader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 1}, memory.NewGoAllocator())
 		if err != nil {
-			fmt.Println("failed to NewFileReader: " + err.Error())
+			log.Println("failed to NewFileReader: " + err.Error())
 		}
 
 		rdr, err := reader.GetRecordReader(context.Background(), nil, nil)
@@ -95,7 +94,7 @@ func Preview(ctx context.Context, cancel context.CancelFunc, outputDirectory str
 			previewRec = rec
 		}
 
-		fmt.Println("Query Completed")
+		log.Println("Query Completed")
 		cancel()
 	}()
 	return c, nil

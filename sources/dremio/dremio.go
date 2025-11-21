@@ -54,20 +54,20 @@ func (d Dremio) DownloadCatalog(ctx context.Context) {
 
 	restClient := NewClient(d.config)
 
-	fmt.Println("Connecting to Dremio...")
+	log.Println("Connecting to Dremio...")
 	if err := restClient.Login(); err != nil {
 		log.Fatalf("failed to login to Dremio: %v", err)
 	}
 
 	for _, schema := range d.config.Schemas {
-		fmt.Println("Fetching tables...")
+		log.Println("Fetching tables...")
 		tables, err := restClient.ListTables(schema)
 		if err != nil {
 			log.Fatalf("failed to list tables: %v", err)
 		}
 
 		if len(tables) == 0 {
-			fmt.Println("No tables found.")
+			log.Println("No tables found.")
 		}
 
 		fmt.Printf("Found %d tables, testing accessibility...\n\n", len(tables))
@@ -86,8 +86,6 @@ func (d Dremio) DownloadCatalog(ctx context.Context) {
 				errorCount++
 			} else {
 				okCount++
-
-				fmt.Println("AA")
 				DownloadCatalogFile(d.config, table.Schema, table.Name)
 			}
 
@@ -100,10 +98,10 @@ func (d Dremio) DownloadCatalog(ctx context.Context) {
 
 		w.Flush()
 
-		fmt.Printf("\nSummary:\n")
-		fmt.Printf("Total tables: %d\n", len(tables))
-		fmt.Printf("Accessible: %d\n", okCount)
-		fmt.Printf("Errors: %d\n", errorCount)
+		log.Printf("\nSummary:\n")
+		log.Printf("Total tables: %d\n", len(tables))
+		log.Printf("Accessible: %d\n", okCount)
+		log.Printf("Errors: %d\n", errorCount)
 	}
 
 }
@@ -162,10 +160,9 @@ func (d Dremio) Stream(ctx context.Context, cancel context.CancelFunc, query str
 			if previewRec != nil {
 				previewRec.Release()
 			}
-			previewRec = rec
 		}
 
-		fmt.Println("Query Completed")
+		log.Println("Query Completed")
 		cancel()
 
 	}()

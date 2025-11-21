@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"github.com/apache/arrow/go/v16/arrow/flight"
@@ -11,7 +10,7 @@ import (
 )
 
 func (s *SimpleFlightServer) ListFlights(criteria *flight.Criteria, stream flight.FlightService_ListFlightsServer) error {
-	fmt.Println("Action: ListFlights")
+	log.Println("Action: ListFlights")
 	catalog, schemaName := getCatalogAndSchema(stream.Context())
 	for name, source := range s.config.Sources {
 
@@ -19,7 +18,7 @@ func (s *SimpleFlightServer) ListFlights(criteria *flight.Criteria, stream fligh
 			for _, table := range source.Tables(context.Background()) {
 				schema, err := source.Schema(context.Background(), table)
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 				}
 
 				appMetaData := AppMetadata{
