@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"text/tabwriter"
 
 	"airportserver/sources"
@@ -107,13 +108,42 @@ func (d Dremio) DownloadCatalog(ctx context.Context) {
 }
 
 func (d Dremio) Stream(ctx context.Context, cancel context.CancelFunc, query string) (chan arrow.Record, error) {
+
 	c := make(chan arrow.Record)
+
+	var mu sync.Mutex
+	channelClosed := false
+
+	closeChannel := func() {
+		mu.Lock()
+		defer mu.Unlock()
+		if !channelClosed {
+			close(c)
+			channelClosed = true
+		}
+	}
+	safeSend := func(rec arrow.Record) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		if channelClosed {
+			return false
+		}
+		select {
+		case c <- rec:
+			return true
+		default:
+			return false
+		}
+	}
+
 	go func() {
 		<-ctx.Done()
-		close(c)
+		closeChannel()
 	}()
 
 	go func() {
+		defer closeChannel()
+
 		client, err := arrowflight.NewClientWithMiddleware(
 			d.config.FlightHost+":"+strconv.Itoa(d.config.FlightPort),
 			nil,
@@ -154,8 +184,9 @@ func (d Dremio) Stream(ctx context.Context, cancel context.CancelFunc, query str
 		for rdr2.Next() {
 			rec := rdr2.Record()
 			rec.Retain()
-			if ctx.Err() == nil {
-				c <- rec
+			if !safeSend(rec) {
+				rec.Release()
+				break
 			}
 			if previewRec != nil {
 				previewRec.Release()

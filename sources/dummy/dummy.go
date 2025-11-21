@@ -3,6 +3,7 @@ package dummy
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
 	"airportserver/sources"
@@ -54,28 +55,41 @@ func (d Dummy) Preview(ctx context.Context, cancel context.CancelFunc, table str
 }
 
 func (d Dummy) Stream(ctx context.Context, cancel context.CancelFunc, query string) (chan arrow.Record, error) {
-	c := make(chan arrow.Record)
-	ctx2, cancel2 := context.WithCancel(context.Background())
 
+	c := make(chan arrow.Record)
+
+	var mu sync.Mutex
 	channelClosed := false
 
-	go func() {
-		<-ctx.Done()
-		if !channelClosed {
-			cancel2()
-			channelClosed = true
-		}
-	}()
-
-	go func() {
-		<-ctx2.Done()
+	closeChannel := func() {
+		mu.Lock()
+		defer mu.Unlock()
 		if !channelClosed {
 			close(c)
 			channelClosed = true
 		}
+	}
+	safeSend := func(rec arrow.Record) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		if channelClosed {
+			return false
+		}
+		select {
+		case c <- rec:
+			return true
+		default:
+			return false
+		}
+	}
+
+	go func() {
+		<-ctx.Done()
+		closeChannel()
 	}()
 
 	go func() {
+		defer closeChannel()
 
 		schema, err := d.Schema(ctx, "")
 		if err != nil {
@@ -90,8 +104,9 @@ func (d Dummy) Stream(ctx context.Context, cancel context.CancelFunc, query stri
 
 			rec := builder.NewRecord()
 			rec.Retain()
-			if ctx2.Err() == nil {
-				c <- rec
+			if !safeSend(rec) {
+				rec.Release()
+				break
 			}
 			time.Sleep(time.Millisecond * 500)
 
@@ -106,7 +121,6 @@ func (d Dummy) Stream(ctx context.Context, cancel context.CancelFunc, query stri
 		}
 
 		log.Println("Query Completed")
-		cancel2()
 
 	}()
 
