@@ -26,23 +26,25 @@ type Connection struct {
 }
 
 func LoadConfig(configPath string) Config {
+	var cfg Config
+
 	configFile, err := os.Open(configPath)
 	if err != nil {
-		log.Printf("Error opening config.toml: %v\n", err)
-		os.Exit(1)
-	}
-	defer configFile.Close()
-
-	configData, err := io.ReadAll(configFile)
-	if err != nil {
-		log.Printf("Error reading config file: %v\n", err)
-		os.Exit(1)
-	}
-
-	var cfg Config
-	err = toml.Unmarshal(configData, &cfg)
-	if err != nil {
-		panic(err)
+		log.Println(err)
+		cfg = Config{}
+	} else {
+		defer configFile.Close()
+		configData, err := io.ReadAll(configFile)
+		if err != nil {
+			log.Println(err)
+			cfg = Config{}
+		} else {
+			err = toml.Unmarshal(configData, &cfg)
+			if err != nil {
+				log.Println("Unable to parse config:", err)
+				cfg = Config{}
+			}
+		}
 	}
 
 	result := map[string]sources.Source{}
