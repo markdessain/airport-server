@@ -25,8 +25,12 @@ func Tables(outputDirectory string) []string {
 		}
 
 		if !info.IsDir() {
-			dpath := strings.TrimPrefix(path, outputDirectory+"/schemas/")
-			result = append(result, dpath)
+
+			path := strings.TrimPrefix(path, outputDirectory+"/schemas/")
+
+			if !strings.HasPrefix(path, ".") {
+				result = append(result, path)
+			}
 		}
 
 		return nil
